@@ -16,128 +16,108 @@
 
 namespace or_tools_catkin {
 using namespace operations_research;
-// [START data_model]
-struct DataModel {
-  const std::vector<std::vector<int>> locations{
-      {4, 4}, {2, 0}, {8, 0}, {0, 1}, {1, 1}, {5, 2}, {7, 2}, {3, 3}, {6, 3},
-      {5, 5}, {8, 5}, {1, 6}, {2, 6}, {3, 7}, {6, 7}, {0, 8}, {7, 8},
-  };
-  const int num_vehicles = 1;
-  const RoutingIndexManager::NodeIndex depot{0};
-  DataModel() {
-    // Convert locations in meters using a city block dimension of 114m x 80m.
-    for (auto& it : const_cast<std::vector<std::vector<int>>&>(locations)) {
-      it[0] *= 114;
-      it[1] *= 80;
-    }
-  }
-};
-// [END data_model]
 
-// [START manhattan_distance_matrix]
-/*! @brief Generate Manhattan distance matrix.
- * @details It uses the data.locations to computes the Manhattan distance
- * between the two positions of two different indices.*/
-std::vector<std::vector<int64_t>> GenerateManhattanDistanceMatrix(
-    const std::vector<std::vector<int>>& locations) {
-  std::vector<std::vector<int64_t>> distances =
-      std::vector<std::vector<int64_t>>(
-          locations.size(), std::vector<int64_t>(locations.size(), int64_t{0}));
-  for (int fromNode = 0; fromNode < locations.size(); fromNode++) {
-    for (int toNode = 0; toNode < locations.size(); toNode++) {
-      if (fromNode != toNode)
-        distances[fromNode][toNode] =
-            int64_t{std::abs(locations[toNode][0] - locations[fromNode][0]) +
-                    std::abs(locations[toNode][1] - locations[fromNode][1])};
-    }
-  }
-  return distances;
+OrInterface::OrInterface(int num_nodes) :
+  num_vehicles_(1),
+  manager_(num_nodes, num_vehicles_, RoutingIndexManager::NodeIndex{num_nodes-2}),
+  routing_(manager_) {
+  num_vehicles_ = 1;
+
+  search_params_= DefaultRoutingSearchParameters();
+
 }
-// [END manhattan_distance_matrix]
 
-// [START solution_printer]
-//! @brief Print the solution
-//! @param[in] manager Index manager used.
-//! @param[in] routing Routing solver used.
-//! @param[in] solution Solution found by the solver.
-void PrintSolution(const RoutingIndexManager& manager,
-                   const RoutingModel& routing, const Assignment& solution) {
-  LOG(INFO) << "Objective: " << solution.ObjectiveValue();
-  // Inspect solution.
-  int64_t index = routing.Start(0);
-  LOG(INFO) << "Route for Vehicle 0:";
+bool OrInterface::loadGTSP(std::vector<std::vector<int>> &adjancy_matrix,
+    std::vector<std::vector<int>> &clusters){
+
+  // Noon and bean transform:
+  // https://www.researchgate.net/publication/265366022_An_Efficient_Transformation_Of_The_Generalized_Traveling_Salesman_Problem
+
+  int m = INT_MAX / 4; // / Precision;
+  // TODO(stlucas): Improve choosing m
+
+
+  int size = adjancy_matrix.size();
+  // TODO(stlucas): manipulate adjancy_matrix to create TSP
+  for (int i = 0; i < size; i++){
+    for(int j = 0; j < size; j++){
+      if(i == j){
+        continue;
+      }
+      if(false) {// check if element is in cluster
+        adjancy_matrix[i][j] += m;
+      }
+
+    }
+  }
+  // Loading underlying TSP
+  return loadTSP(adjancy_matrix);
+}
+
+bool OrInterface::loadTSP(std::vector<std::vector<int>> &adjancy_matrix){
+  adjancy_matrix_ = adjancy_matrix;
+
+  return setup();
+}
+
+bool OrInterface::setup(){
+    ROS_ASSERT(!adjancy_matrix_.empty());
+
+    //TODO(stlucas): Fix routing callback -> might be thrown away before solver starts
+    const auto local_adjancy_matrix = adjancy_matrix_;
+
+    const int transit_callback_index = routing_.RegisterTransitCallback(
+        [this](int64_t from_index,
+                                     int64_t to_index) -> int64_t {
+          // Convert from routing variable Index to distance matrix NodeIndex.
+          auto from_node = manager_.IndexToNode(from_index).value();
+          auto to_node = manager_.IndexToNode(to_index).value();
+          return adjancy_matrix_[from_node][to_node];
+        });
+
+
+    routing_.SetArcCostEvaluatorOfAllVehicles(transit_callback_index);
+
+
+    return true;
+}
+
+bool OrInterface::solve() {
+  const Assignment* solution = routing_.SolveWithParameters(search_params_);
+  // TODO(stlucas): check if solver was successful
+
+  extractSolution(*solution);
+}
+
+void OrInterface::extractSolution(const Assignment& solution) {
+  path_nodes_.clear();
+
+  ROS_INFO_STREAM("Objective: " << solution.ObjectiveValue());
+
+  // get start for vehicle 0
   int64_t distance{0};
+  int64_t index = routing_.Start(0);
   std::stringstream route;
-  while (routing.IsEnd(index) == false) {
-    route << manager.IndexToNode(index).value() << " -> ";
+
+  // Extract full route
+  while (routing_.IsEnd(index) == false) {
+    route << manager_.IndexToNode(index).value() << " -> ";
+    path_nodes_.push_back(index);
     int64_t previous_index = index;
-    index = solution.Value(routing.NextVar(index));
-    distance += routing.GetArcCostForVehicle(previous_index, index, int64_t{0});
+    index = solution.Value(routing_.NextVar(index));
+
+    distance += routing_.GetArcCostForVehicle(previous_index, index, int64_t{0});
   }
-  LOG(INFO) << route.str() << manager.IndexToNode(index).value();
-  LOG(INFO) << "Distance of the route: " << distance << "m";
-  LOG(INFO) << "";
-  LOG(INFO) << "Advanced usage:";
-  LOG(INFO) << "Problem solved in " << routing.solver()->wall_time() << "ms";
-}
-// [END solution_printer]
+  ROS_INFO_STREAM(route.str() << manager_.IndexToNode(index).value());
+  ROS_INFO_STREAM("Distance of the route: " << distance << "m \n");
+  ROS_INFO_STREAM( "Advanced usage: \n" <<
+                   "Problem solved in " << routing_.solver()->wall_time() << "ms");
 
-void Tsp() {
-  // Instantiate the data problem.
-  // [START data]
-  DataModel data;
-  // [END data]
-
-  // Create Routing Index Manager
-  // [START index_manager]
-  RoutingIndexManager manager(data.locations.size(), data.num_vehicles,
-                              data.depot);
-  // [END index_manager]
-
-  // Create Routing Model.
-  // [START routing_model]
-  RoutingModel routing(manager);
-  // [END routing_model]
-
-  // Create and register a transit callback.
-  // [START transit_callback]
-  const auto distance_matrix = GenerateManhattanDistanceMatrix(data.locations);
-  const int transit_callback_index = routing.RegisterTransitCallback(
-      [&distance_matrix, &manager](int64_t from_index,
-                                   int64_t to_index) -> int64_t {
-        // Convert from routing variable Index to distance matrix NodeIndex.
-        auto from_node = manager.IndexToNode(from_index).value();
-        auto to_node = manager.IndexToNode(to_index).value();
-        return distance_matrix[from_node][to_node];
-      });
-  // [END transit_callback]
-
-  // Define cost of each arc.
-  // [START arc_cost]
-  routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index);
-  // [END arc_cost]
-
-  // Setting first solution heuristic.
-  // [START parameters]
-  RoutingSearchParameters searchParameters = DefaultRoutingSearchParameters();
-  searchParameters.set_first_solution_strategy(
-      FirstSolutionStrategy::PATH_CHEAPEST_ARC);
-  // [END parameters]
-
-  // Solve the problem.
-  // [START solve]
-  const Assignment* solution = routing.SolveWithParameters(searchParameters);
-  // [END solve]
-
-  // Print solution on console.
-  // [START print_solution]
-  PrintSolution(manager, routing, *solution);
-  // [END print_solution]
+  // TODO(stlucas): filter in-cluster tours for the GTSP?
 }
 
-bool smallTask(){
-  Tsp();
-  return true;
+std::vector<int> OrInterface::getSolution(){
+  return path_nodes_;
 }
 
 }  // namespace or_interface_catkin
