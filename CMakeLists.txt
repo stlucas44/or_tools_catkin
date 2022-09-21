@@ -17,7 +17,6 @@ set(ortools_LIBRARIES ${CMAKE_SOURCE_DIR}/libs/or_tools/lib/libortools.so)
 catkin_package()
 
 include_directories(include
-                    src
                     ${catkin_INCLUDE_DIRS}
                     ${ortools_INCLUDE_DIRS}
                     )
@@ -28,6 +27,6 @@ add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${ortools_LIBRARIES})
 
 catkin_add_gtest(test_or test/or-test.cpp)
-target_link_libraries(test_or ${PROJECT_NAME})
+target_link_libraries(test_or ${PROJECT_NAME} ${catkin_LIBRARIES} ${ortools_LIBRARIES})
 
 # find_package -> looks for FindSomeThing.cmake, implicitly calls find_path and find library
