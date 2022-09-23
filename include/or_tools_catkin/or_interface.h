@@ -1,32 +1,37 @@
 #ifndef OR_TOOLS_CATKIN_OR_INTERFACE_H
 #define OR_TOOLS_CATKIN_OR_INTERFACE_H
 
+#include <vector>
+
+#include "ortools/constraint_solver/routing.h"
+#include "ortools/constraint_solver/routing_enums.pb.h"
+#include "ortools/constraint_solver/routing_index_manager.h"
+#include "ortools/constraint_solver/routing_parameters.h"
+
 namespace or_tools_catkin {
 using namespace operations_research;
 
 class OrInterface {
+public:
   OrInterface(int num_nodes);
-  bool loadGTSP(std::vector<std::vector<int>> &adjancy_matrix, std::vector<std::vector<int>> &clusters);
+  bool loadGTSP(std::vector<std::vector<int>> &adjancy_matrix,
+      std::vector<std::vector<int>> &clusters);
   bool loadTSP(std::vector<std::vector<int>> &adjancy_matrix);
   bool solve();
-  std::vector<int> getSolution();
-  //void getStats();
+  bool solveOneStep();
+  std::vector<int> getTSPSolution();
+  std::vector<int> getGTSPsolution();
 
 private:
-  bool setup();
-  void extractSolution(const Assignment& solution);
-
-  RoutingIndexManager manager_;
-  RoutingModel routing_;
-
+  void extractSolution(const Assignment& solution,
+        RoutingIndexManager manager,
+        RoutingModel& routing);
   RoutingSearchParameters search_params_;
-  int num_vehicles_;
+  const int num_vehicles_;
+  const RoutingIndexManager::NodeIndex depot_;
 
   std::vector<std::vector<int>> adjancy_matrix_;
-
-  //const int transit_callback_index_; // const might get issues
-
-
+  std::vector<std::vector<int>> clusters_;
   std::vector<int> path_nodes_;
 
 

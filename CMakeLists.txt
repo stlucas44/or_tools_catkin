@@ -26,7 +26,10 @@ add_library(${PROJECT_NAME}
 )
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${ortools_LIBRARIES})
 
-catkin_add_gtest(test_or test/or-test.cpp)
-target_link_libraries(test_or ${PROJECT_NAME} ${catkin_LIBRARIES} ${ortools_LIBRARIES})
+catkin_add_gtest(test-orlib test/orlib-test.cpp)
+target_link_libraries(test-orlib ${PROJECT_NAME} ${catkin_LIBRARIES} ${ortools_LIBRARIES})
+
+catkin_add_gtest(test_orinterface test/orinterface-test.cpp)
+target_link_libraries(test_orinterface ${PROJECT_NAME})
 
 # find_package -> looks for FindSomeThing.cmake, implicitly calls find_path and find library

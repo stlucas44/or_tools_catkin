@@ -1,16 +1,7 @@
 
-
-#include <cmath>
 #include <cstdint>
-#include <vector>
-
 #include <ros/package.h>
 #include <ros/ros.h>
-
-#include "ortools/constraint_solver/routing.h"
-#include "ortools/constraint_solver/routing_enums.pb.h"
-#include "ortools/constraint_solver/routing_index_manager.h"
-#include "ortools/constraint_solver/routing_parameters.h"
 
 #include "or_tools_catkin/or_interface.h"
 
@@ -19,20 +10,21 @@ using namespace operations_research;
 
 OrInterface::OrInterface(int num_nodes) :
   num_vehicles_(1),
-  manager_(num_nodes, num_vehicles_, RoutingIndexManager::NodeIndex{num_nodes-2}),
-  routing_(manager_) {
-  num_vehicles_ = 1;
+  depot_{num_nodes-2} // TODO(stlucas): change to num_nodes -2 at some point!
+   {
+  ROS_ASSERT(num_nodes > 1);
 
   search_params_= DefaultRoutingSearchParameters();
-
+  search_params_.set_first_solution_strategy(
+      FirstSolutionStrategy::PATH_CHEAPEST_ARC); //May adapt this!
 }
 
 bool OrInterface::loadGTSP(std::vector<std::vector<int>> &adjancy_matrix,
     std::vector<std::vector<int>> &clusters){
 
+  clusters_ = clusters;
   // Noon and bean transform:
   // https://www.researchgate.net/publication/265366022_An_Efficient_Transformation_Of_The_Generalized_Traveling_Salesman_Problem
-
   int m = INT_MAX / 4; // / Precision;
   // TODO(stlucas): Improve choosing m
 
@@ -56,67 +48,70 @@ bool OrInterface::loadGTSP(std::vector<std::vector<int>> &adjancy_matrix,
 
 bool OrInterface::loadTSP(std::vector<std::vector<int>> &adjancy_matrix){
   adjancy_matrix_ = adjancy_matrix;
-
-  return setup();
-}
-
-bool OrInterface::setup(){
-    ROS_ASSERT(!adjancy_matrix_.empty());
-
-    //TODO(stlucas): Fix routing callback -> might be thrown away before solver starts
-    const auto local_adjancy_matrix = adjancy_matrix_;
-
-    const int transit_callback_index = routing_.RegisterTransitCallback(
-        [this](int64_t from_index,
-                                     int64_t to_index) -> int64_t {
-          // Convert from routing variable Index to distance matrix NodeIndex.
-          auto from_node = manager_.IndexToNode(from_index).value();
-          auto to_node = manager_.IndexToNode(to_index).value();
-          return adjancy_matrix_[from_node][to_node];
-        });
-
-
-    routing_.SetArcCostEvaluatorOfAllVehicles(transit_callback_index);
-
-
-    return true;
+  // TODO introcude better test!
+  return true;
 }
 
 bool OrInterface::solve() {
-  const Assignment* solution = routing_.SolveWithParameters(search_params_);
-  // TODO(stlucas): check if solver was successful
+  ROS_ASSERT(!adjancy_matrix_.empty());
 
-  extractSolution(*solution);
+  RoutingIndexManager manager(adjancy_matrix_.size(), 1,
+                              depot_);
+  RoutingModel routing(manager);
+
+  const int transit_callback_index = routing.RegisterTransitCallback(
+      [this, &manager](int64_t from_index,
+                                   int64_t to_index) -> int64_t {
+        // Convert from routing variable Index to distance matrix NodeIndex.
+        auto from_node = manager.IndexToNode(from_index).value();
+        auto to_node = manager.IndexToNode(to_index).value();
+        return adjancy_matrix_[from_node][to_node];
+      });
+  // NOTE: manager has to be passed by reference strictly!
+
+  RoutingSearchParameters searchParameters = DefaultRoutingSearchParameters();
+  searchParameters.set_first_solution_strategy(
+      FirstSolutionStrategy::PATH_CHEAPEST_ARC);
+
+  const Assignment* solution = routing.SolveWithParameters(search_params_);
+
+  extractSolution(*solution, manager, routing);
+  return true;
 }
 
-void OrInterface::extractSolution(const Assignment& solution) {
+void OrInterface::extractSolution(const Assignment& solution,
+      RoutingIndexManager manager,
+      RoutingModel& routing) {
   path_nodes_.clear();
 
   ROS_INFO_STREAM("Objective: " << solution.ObjectiveValue());
 
   // get start for vehicle 0
   int64_t distance{0};
-  int64_t index = routing_.Start(0);
+  int64_t index = routing.Start(0);
   std::stringstream route;
 
   // Extract full route
-  while (routing_.IsEnd(index) == false) {
-    route << manager_.IndexToNode(index).value() << " -> ";
+  while (routing.IsEnd(index) == false) {
+    route << manager.IndexToNode(index).value() << " -> ";
     path_nodes_.push_back(index);
     int64_t previous_index = index;
-    index = solution.Value(routing_.NextVar(index));
+    index = solution.Value(routing.NextVar(index));
 
-    distance += routing_.GetArcCostForVehicle(previous_index, index, int64_t{0});
+    distance += routing.GetArcCostForVehicle(previous_index, index, int64_t{0});
   }
-  ROS_INFO_STREAM(route.str() << manager_.IndexToNode(index).value());
+  ROS_INFO_STREAM(route.str() << manager.IndexToNode(index).value());
   ROS_INFO_STREAM("Distance of the route: " << distance << "m \n");
   ROS_INFO_STREAM( "Advanced usage: \n" <<
-                   "Problem solved in " << routing_.solver()->wall_time() << "ms");
-
-  // TODO(stlucas): filter in-cluster tours for the GTSP?
+                   "Problem solved in " << routing.solver()->wall_time() << "ms");
 }
 
-std::vector<int> OrInterface::getSolution(){
+std::vector<int> OrInterface::getTSPSolution(){
+  return path_nodes_;
+}
+
+std::vector<int> OrInterface::getGTSPsolution(){
+  // TODO(stlucas): filter in-cluster tours for the GTSP?
   return path_nodes_;
 }
 
