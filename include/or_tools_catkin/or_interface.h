@@ -2,6 +2,7 @@
 #define OR_TOOLS_CATKIN_OR_INTERFACE_H
 
 #include <vector>
+#include <map>
 
 #include "ortools/constraint_solver/routing.h"
 #include "ortools/constraint_solver/routing_enums.pb.h"
@@ -15,10 +16,10 @@ namespace or_tools_catkin {
     public:
         OrInterface(int num_nodes);
 
-        bool loadGTSP(std::vector<std::vector<int>> &adjancy_matrix,
+        bool loadGTSP(std::vector<std::vector<int>> &adjacency_matrix,
                       std::vector<std::vector<int>> &clusters);
 
-        bool loadTSP(std::vector<std::vector<int>> &adjancy_matrix);
+        bool loadTSP(std::vector<std::vector<int>> &adjacency_matrix);
 
         bool solve();
 
@@ -35,8 +36,10 @@ namespace or_tools_catkin {
         const int num_vehicles_;
         const RoutingIndexManager::NodeIndex depot_;
 
-        std::vector<std::vector<int>> adjancy_matrix_;
+        std::vector<std::vector<int>> adjacency_matrix_;
         std::vector<std::vector<int>> clusters_;
+        std::map<int, int> cluster_lookup_; // key: node_index, value: cluster
+
         std::vector<int> path_nodes_;
     };
 } // namespace or_interface_catkin

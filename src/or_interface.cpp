@@ -19,58 +19,91 @@ OrInterface::OrInterface(int num_nodes) :
             FirstSolutionStrategy::PATH_CHEAPEST_ARC); //May adapt this!
 }
 
-bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjancy_matrix,
+bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjacency_matrix,
                        std::vector <std::vector<int>> &clusters) {
 
+    int num_nodes = adjacency_matrix.size();
     clusters_ = clusters;
     // Noon and bean transform:
     // https://www.researchgate.net/publication/265366022_An_Efficient_Transformation_Of_The_Generalized_Traveling_Salesman_Problem
+
+    // Improved (maybe simpler): Generalized network design problems
+    // https://www.degruyter.com/document/doi/10.1515/9783110267686.60/html?lang=de
+
     int m = INT_MAX / 4; // / Precision;
     // TODO(stlucas): Improve choosing m
+    std::vector<int> row(num_nodes, -1);
+    std::vector<std::vector<int>> cluster_matrix(num_nodes, row);
+    // NOTES: this matrix represents a lookup if and to which cluster a node belongs
 
-
-    int size = adjancy_matrix.size();
     // TODO(stlucas): fix the cluster assignment (maybe review the TSP to GTSP transform)
 
     // create lookup to check for cluster membership
-    std::map<int, int> cluster_lookup; // key: node_index, value: cluster
-    for (int i = 0; i < clusters.size(); i++) { // per cluster
-        for(int j; j < clusters[i].size(); j++){ // iterate over each node element
-            cluster_lookup[clusters[i][j]] = i; //for node index, assign cluster index
+    for (int cluster_index = 0; cluster_index < clusters.size(); cluster_index++) { // per cluster
+        std::vector<int>& current_cluster =clusters[cluster_index];
+        for(int j = 0; j < current_cluster.size(); j++) { // iterate over each node element
+            int node_index = current_cluster[j];
+            cluster_lookup_[node_index] = cluster_index; //for node index, assign cluster index
+
+            // mark intracluster edges
+            for(int k = j+1; k < clusters[cluster_index].size(); k++){
+              cluster_matrix[node_index][current_cluster[k]] = cluster_index;
+              cluster_matrix[current_cluster[k]][node_index] = cluster_index;
+             }
         }
     }
 
-    // TODO(stlucas): manipulate adjancy_matrix to create TSP
-    for (int i = 0; i < size; i++) {
-        for (int j = 0; j < size; j++) {
-            adjancy_matrix[i][j] += m;
+    // creating circular zero costs, backpropagating costs
+    for(std::vector<int>& current_cluster : clusters){
+      for(int i = 0; i <  current_cluster.size() - 1; i++){
+          // moving "leaving cost one to the left"
+          for(int k = 0; k < num_nodes-1; k++){
+            if(cluster_matrix[current_cluster[i+1]][k] == -1){
+                adjacency_matrix[current_cluster[i]][k] = adjacency_matrix[current_cluster[i+1]][k];
+            }
+          }
+          // assigining the direct circle;
+          adjacency_matrix[current_cluster[i]][current_cluster[i + 1]] = 0;
+
+          // shifting the cost for leaving the cluster at entry point
+          for(int k = 0; k < num_nodes-1; k++) {
+            adjacency_matrix[current_cluster[i]][k] = adjacency_matrix[current_cluster[i+1]][k];
+          }
+      }
+      adjacency_matrix[current_cluster.back()][current_cluster.front()] = 0;
+      // do the last shift, front to back for all k
+      for(int k = 0; k < num_nodes-1; k++) {
+        if(cluster_matrix[current_cluster[current_cluster.front()]][k] == -1){
+            adjacency_matrix[current_cluster.back()][k] = adjacency_matrix[current_cluster.front()][k];
         }
+      }
+    }
 
-        int cluster_index = -1;
-        if(cluster_lookup.find(i) != cluster_lookup.end()){
-            cluster_index = cluster_lookup[i];
-
-            for (int &cluster_member : clusters[cluster_index]){
-                adjancy_matrix[i][cluster_member] -= m;
+    //assigning M to inter-cluster connections
+    for (int i = 0; i < num_nodes; i++) {
+        for (int j = 0; j < num_nodes; j++) {
+            if (cluster_matrix[i][j] != 0) {
+              adjacency_matrix[i][j] += m;
             }
         }
     }
 
+    ROS_INFO("Transform is done");
 
     // Loading underlying TSP
-    return loadTSP(adjancy_matrix);
+    return loadTSP(adjacency_matrix);
 }
 
-bool OrInterface::loadTSP(std::vector <std::vector<int>> &adjancy_matrix) {
-    adjancy_matrix_ = adjancy_matrix;
+bool OrInterface::loadTSP(std::vector <std::vector<int>> &adjacency_matrix) {
+    adjacency_matrix_ = adjacency_matrix;
     // TODO introcude better test!
     return true;
 }
 
 bool OrInterface::solve() {
-    ROS_ASSERT(!adjancy_matrix_.empty());
+    ROS_ASSERT(!adjacency_matrix_.empty());
 
-    RoutingIndexManager manager(adjancy_matrix_.size(), 1,
+    RoutingIndexManager manager(adjacency_matrix_.size(), 1,
                                 depot_);
     RoutingModel routing(manager);
 
@@ -80,7 +113,7 @@ bool OrInterface::solve() {
                 // Convert from routing variable Index to distance matrix NodeIndex.
                 auto from_node = manager.IndexToNode(from_index).value();
                 auto to_node = manager.IndexToNode(to_index).value();
-                return adjancy_matrix_[from_node][to_node];
+                return adjacency_matrix_[from_node][to_node];
             });
     // NOTE: manager has to be passed by reference strictly!
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index);
@@ -127,7 +160,20 @@ std::vector<int> OrInterface::getTSPSolution() {
 }
 
 std::vector<int> OrInterface::getGTSPSolution() {
-    // TODO(stlucas): filter in-cluster tours for the GTSP?
+    // TODO(stlucas): filter in-cluster tours for the GTSP
+
+    // detect first element of a cluster and drop the rest!
+    std::vector<int>::iterator iter = path_nodes_.begin();
+
+    for(iter; iter < path_nodes_.end(); iter++){
+        if(cluster_lookup_.find(*iter) != cluster_lookup_.end()){
+
+            int cluster_index = cluster_lookup_[*iter];
+            int cluster_size = clusters_[cluster_index].size();
+            path_nodes_.erase(iter + 1, iter + cluster_size);
+        }
+    }
+
     return path_nodes_;
 }
 

@@ -8,9 +8,9 @@ namespace or_tools_catkin {
 
 
 std::vector<std::vector<int>> simpleTSP(){
-  //create adjancy matrix
+  //create adjacency matrix
   int size = 10;
-  std::vector<std::vector<int>> adjancy(size);
+  std::vector<std::vector<int>> adjacency(size);
   for(int i = 0; i < size; i++){
     std::vector<int> row(size, 0);
     for(int j = 0; j < size; j++){
@@ -18,36 +18,66 @@ std::vector<std::vector<int>> simpleTSP(){
         row[j] = rand() % 100 + 1;
       }
     }
-    adjancy[i] = row;
+    adjacency[i] = row;
   }
 
-  return adjancy;
+  return adjacency;
 }
 
-std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjancy){
-    int num_nodes = adjancy.size();
-    int num_clusters = rand() % (int)(0.25 * num_nodes) + 1;
-    int nodes_per_cluster = num_nodes % num_clusters;
+std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjacency){
+    int num_nodes = adjacency.size();
+    int num_clusters = (int)(0.25 * num_nodes) + 1; // max n * 0.25 clusters
+    int nodes_per_cluster = num_nodes / num_clusters;
+    ROS_INFO("Num nodes %i, num clusters %i,  Nodes per cluster %i", num_nodes, num_clusters, nodes_per_cluster);
 
-    std::vector<std::vector<int>>  cluster_set;
-    for(int i = 0; i < num_clusters; i++){
-        std::vector<std::vector<int>> cluster;
-        for(int j = 0; j<nodes_per_cluster; j++){
-            // TODO(stlucas): Create random cluster!
-        }
+    std::vector<std::vector<int>>  cluster_set(num_clusters);
+    for(int i = 0; i < num_nodes; i++){
+        cluster_set[rand() % num_clusters].push_back(i);
+    }
+    return cluster_set;
+}
+
+
+void printVector(std::vector<int> &data){
+    std::stringstream ss;
+    std::copy(data.begin(), data.end(), std::ostream_iterator<double>(ss, " "));
+    ss << std::endl;
+    ROS_INFO_STREAM(ss.str());
+}
+void printVectorVector(std::vector<std::vector<int>> &data){
+    for(auto vector : data){
+        printVector(vector);
     }
 }
 
 
 TEST(OrInterfaceTest, GTSP){
-    EXPECT_TRUE(true);
+    auto adjacency = simpleTSP();
+    ROS_INFO("adjacency: ");
+    printVectorVector(adjacency);
+
+    auto clusters = simpleCluster(adjacency);
+    ROS_INFO("Cluster:");
+    printVectorVector(clusters);
+
+    OrInterface solver(adjacency.size());
+    EXPECT_TRUE(solver.loadGTSP(adjacency, clusters));
+    ROS_INFO("Manipulated adjacency");
+    printVectorVector(solver.adjacency_matrix_);
+
+    EXPECT_TRUE(solver.solve());
+    auto result = solver.getTSPSolution();
+    printVector(result);
+    auto result_pruned = solver.getGTSPSolution();
+    printVector(result_pruned);
+
 }
 
 TEST(OrInterfaceTest, TSP){
-  auto adjancy = simpleTSP();
+  auto adjacency = simpleTSP();
 
-  OrInterface solver(adjancy.size());
-  EXPECT_TRUE(solver.loadTSP(adjancy));
+  OrInterface solver(adjacency.size());
+  EXPECT_TRUE(solver.loadTSP(adjacency));
   EXPECT_TRUE(solver.solve());
   EXPECT_NO_THROW(solver.getTSPSolution());
 
