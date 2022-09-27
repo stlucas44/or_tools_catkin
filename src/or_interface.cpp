@@ -46,43 +46,40 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjacency_matrix,
             cluster_lookup_[node_index] = cluster_index; //for node index, assign cluster index
 
             // mark intracluster edges
-            for(int k = j+1; k < clusters[cluster_index].size(); k++){
+            for(int k = j+1; k < current_cluster.size(); k++){
               cluster_matrix[node_index][current_cluster[k]] = cluster_index;
               cluster_matrix[current_cluster[k]][node_index] = cluster_index;
              }
         }
     }
 
-    // creating circular zero costs, backpropagating costs
+    // creating circular zero costs, back-propagating costs
     for(std::vector<int>& current_cluster : clusters){
-      for(int i = 0; i <  current_cluster.size() - 1; i++){
-          // moving "leaving cost one to the left"
-          for(int k = 0; k < num_nodes-1; k++){
-            if(cluster_matrix[current_cluster[i+1]][k] == -1){
-                adjacency_matrix[current_cluster[i]][k] = adjacency_matrix[current_cluster[i+1]][k];
+        for(int i = 0; i <  current_cluster.size() - 1; i++){
+            // moving "leaving cost one to the left"
+            for(int k = 0; k < num_nodes; k++) {
+                if(cluster_matrix[current_cluster[i+1]][k] == -1){ // if its an external edge, put it one back
+                    adjacency_matrix[current_cluster[i]][k] = adjacency_matrix[current_cluster[i+1]][k];
+                    // TODO: fix the overwriting of the first swap in the list?!
             }
           }
-          // assigining the direct circle;
+          // assigning the direct circle;
           adjacency_matrix[current_cluster[i]][current_cluster[i + 1]] = 0;
-
-          // shifting the cost for leaving the cluster at entry point
-          for(int k = 0; k < num_nodes-1; k++) {
-            adjacency_matrix[current_cluster[i]][k] = adjacency_matrix[current_cluster[i+1]][k];
-          }
-      }
-      adjacency_matrix[current_cluster.back()][current_cluster.front()] = 0;
-      // do the last shift, front to back for all k
-      for(int k = 0; k < num_nodes-1; k++) {
-        if(cluster_matrix[current_cluster[current_cluster.front()]][k] == -1){
-            adjacency_matrix[current_cluster.back()][k] = adjacency_matrix[current_cluster.front()][k];
         }
-      }
+        adjacency_matrix[current_cluster.back()][current_cluster.front()] = 0;
+
+        // do the last shift, front to back for all k
+        for(int k = 0; k < num_nodes; k++) {
+            if(cluster_matrix[current_cluster.front()][k] == -1){
+                adjacency_matrix[current_cluster.back()][k] = adjacency_matrix[current_cluster.front()][k];
+            }
+        }
     }
 
     //assigning M to inter-cluster connections
     for (int i = 0; i < num_nodes; i++) {
         for (int j = 0; j < num_nodes; j++) {
-            if (cluster_matrix[i][j] != 0) {
+            if (cluster_matrix[i][j] == -1) {
               adjacency_matrix[i][j] += m;
             }
         }
