@@ -7,9 +7,8 @@
 namespace or_tools_catkin {
 
 
-std::vector<std::vector<int>> simpleTSP(){
+std::vector<std::vector<int>> simpleTSP(int size = 10){
   //create adjacency matrix
-  int size = 10;
   std::vector<std::vector<int>> adjacency(size);
   for(int i = 0; i < size; i++){
     std::vector<int> row(size, 0);
@@ -28,7 +27,8 @@ std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjace
     int num_nodes = adjacency.size();
     int num_clusters = (int)(0.25 * num_nodes) + 1; // max n * 0.25 clusters
     int nodes_per_cluster = num_nodes / num_clusters;
-    ROS_INFO("Num nodes %i, num clusters %i,  Nodes per cluster %i", num_nodes, num_clusters, nodes_per_cluster);
+    ROS_INFO("Creating cluster: %i nodes, %i clusters,  %i nodes per cluster",
+             num_nodes, num_clusters, nodes_per_cluster);
 
     std::vector<std::vector<int>>  cluster_set(num_clusters);
     for(int i = 0; i < num_nodes; i++){
@@ -51,10 +51,35 @@ void printVectorVector(std::vector<std::vector<int>> &data){
 }
 
 
-TEST(OrInterfaceTest, GTSP){
+TEST(OrInterfaceTest, manyGTSP){
+    int num_runs = 1000;
+    for(int i = 0; i < num_runs; i++){
+      auto adjacency = simpleTSP();
+
+      auto clusters = simpleCluster(adjacency);
+      ROS_INFO("Cluster:");
+      printVectorVector(clusters);
+
+      OrInterface solver(adjacency.size());
+      EXPECT_TRUE(solver.loadGTSP(adjacency, clusters));
+      //ROS_INFO("Manipulated adjacency");
+      //printVectorVector(solver.adjacency_matrix_);
+
+      EXPECT_TRUE(solver.solve());
+      //auto result = solver.getTSPSolution();
+      //printVector(result);
+      auto result_pruned = solver.getGTSPSolution();
+      ROS_INFO("Solution # %i:", i);
+      printVector(result_pruned);
+
+    }
+
+}
+
+TEST(OrInterfaceTest, simpleGTSP){
     auto adjacency = simpleTSP();
-    ROS_INFO("adjacency: ");
-    printVectorVector(adjacency);
+    //ROS_INFO("adjacency: ");
+    //printVectorVector(adjacency);
 
     auto clusters = simpleCluster(adjacency);
     ROS_INFO("Cluster:");
@@ -62,8 +87,8 @@ TEST(OrInterfaceTest, GTSP){
 
     OrInterface solver(adjacency.size());
     EXPECT_TRUE(solver.loadGTSP(adjacency, clusters));
-    ROS_INFO("Manipulated adjacency");
-    printVectorVector(solver.adjacency_matrix_);
+    //ROS_INFO("Manipulated adjacency");
+    //printVectorVector(solver.adjacency_matrix_);
 
     EXPECT_TRUE(solver.solve());
     auto result = solver.getTSPSolution();
@@ -72,7 +97,7 @@ TEST(OrInterfaceTest, GTSP){
     printVector(result_pruned);
 
 }
-
+/*
 TEST(OrInterfaceTest, TSP){
   auto adjacency = simpleTSP();
 
@@ -82,6 +107,7 @@ TEST(OrInterfaceTest, TSP){
   EXPECT_NO_THROW(solver.getTSPSolution());
 
 }
+ */
 } // namespace or_interface_catkin
 
 

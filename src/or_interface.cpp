@@ -17,6 +17,9 @@ OrInterface::OrInterface(int num_nodes) :
     search_params_ = DefaultRoutingSearchParameters();
     search_params_.set_first_solution_strategy(
             FirstSolutionStrategy::PATH_CHEAPEST_ARC); //May adapt this!
+    //TODO: check performance against guided local search
+
+    //search_params_.mutable_time_limit()->set_seconds(200);
 }
 
 bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjacency_matrix,
@@ -38,15 +41,13 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjacency_matrix,
             total_sum += element;
         }
     }
-    int m = total_sum;
+    m_ = total_sum;
 
+    // cluster membership lookup
     std::vector<int> row(num_nodes, -1);
     std::vector<std::vector<int>> cluster_matrix(num_nodes, row);
-    // NOTES: this matrix represents a lookup if and to which cluster a node belongs
 
-    // TODO(stlucas): fix the cluster assignment (maybe review the TSP to GTSP transform)
-
-    // create lookup to check for cluster membership
+    // fill lookup
     for (int cluster_index = 0; cluster_index < clusters.size(); cluster_index++) { // per cluster
         std::vector<int>& current_cluster =clusters[cluster_index];
         for(int j = 0; j < current_cluster.size(); j++) { // iterate over each node element
@@ -94,12 +95,10 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjacency_matrix,
     for (int i = 0; i < num_nodes; i++) {
         for (int j = 0; j < num_nodes; j++) {
             if (cluster_matrix[i][j] == -1) {
-              adjacency_matrix[i][j] += m;
+              adjacency_matrix[i][j] += m_;
             }
         }
     }
-
-    ROS_INFO("Transform is done");
 
     // Loading underlying TSP
     return loadTSP(adjacency_matrix);
@@ -129,10 +128,6 @@ bool OrInterface::solve() {
     // NOTE: manager has to be passed by reference strictly!
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index);
 
-    RoutingSearchParameters searchParameters = DefaultRoutingSearchParameters();
-    searchParameters.set_first_solution_strategy(
-            FirstSolutionStrategy::PATH_CHEAPEST_ARC);
-
     const Assignment *solution = routing.SolveWithParameters(search_params_);
 
     extractSolution(*solution, manager, routing);
@@ -147,7 +142,7 @@ void OrInterface::extractSolution(const Assignment &solution,
     ROS_INFO_STREAM("Objective: " << solution.ObjectiveValue());
 
     // get start for vehicle 0
-    int64_t distance{0};
+    cost_ = 0;
     int64_t index = routing.Start(0);
     std::stringstream route;
 
@@ -158,10 +153,10 @@ void OrInterface::extractSolution(const Assignment &solution,
         int64_t previous_index = index;
         index = solution.Value(routing.NextVar(index));
 
-        distance += routing.GetArcCostForVehicle(previous_index, index, int64_t{0});
+        cost_ += routing.GetArcCostForVehicle(previous_index, index, int64_t{0});
     }
     ROS_INFO_STREAM(route.str() << manager.IndexToNode(index).value());
-    ROS_INFO_STREAM("Distance of the route: " << distance << "m \n");
+    ROS_INFO_STREAM("Distance of the route: " << cost_ << "m \n");
     ROS_INFO_STREAM("Problem solved in " << routing.solver()->wall_time() << "ms");
 }
 
@@ -183,6 +178,8 @@ std::vector<int> OrInterface::getGTSPSolution() {
             path_nodes_.erase(iter + 1, iter + cluster_size);
         }
     }
+
+    ROS_INFO_STREAM("Corrected distance of the route: " << cost_ - path_nodes_.size() * m_ << "m \n");
 
     return path_nodes_;
 }

@@ -14,7 +14,10 @@ set(CMAKE_BUILD_TYPE Release)
 set(ortools_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/libs/or_tools/include)
 set(ortools_LIBRARIES ${CMAKE_SOURCE_DIR}/libs/or_tools/lib/libortools.so)
 
-catkin_package()
+catkin_package(
+        INCLUDE_DIRS include ${catkin_INCLUDE_DIRS} ${ortools_INCLUDE_DIRS} # does it need all or is include sufficient)
+        LIBRARIES ${PROJECT_NAME}
+)
 
 include_directories(include
                     ${catkin_INCLUDE_DIRS}
@@ -27,7 +30,7 @@ add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${ortools_LIBRARIES})
 
 catkin_add_gtest(test-orlib test/orlib-test.cpp)
-target_link_libraries(test-orlib ${PROJECT_NAME} ${catkin_LIBRARIES} ${ortools_LIBRARIES})
+target_link_libraries(test-orlib ${catkin_LIBRARIES} ${ortools_LIBRARIES})
 
 catkin_add_gtest(test_orinterface test/orinterface-test.cpp)
 target_link_libraries(test_orinterface ${PROJECT_NAME})

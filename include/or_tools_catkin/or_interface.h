@@ -35,6 +35,8 @@ namespace or_tools_catkin {
         RoutingSearchParameters search_params_;
         const int num_vehicles_;
         const RoutingIndexManager::NodeIndex depot_;
+        int cost_;
+        int m_;
 
         std::vector<std::vector<int>> adjacency_matrix_;
         std::vector<std::vector<int>> clusters_;
