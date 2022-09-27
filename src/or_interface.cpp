@@ -24,14 +24,22 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjacency_matrix,
 
     int num_nodes = adjacency_matrix.size();
     clusters_ = clusters;
-    // Noon and bean transform:
+    // Noon and bean transform: (currently implemented)
     // https://www.researchgate.net/publication/265366022_An_Efficient_Transformation_Of_The_Generalized_Traveling_Salesman_Problem
 
     // Improved (maybe simpler): Generalized network design problems
     // https://www.degruyter.com/document/doi/10.1515/9783110267686.60/html?lang=de
 
-    int m = INT_MAX / 4; // / Precision;
-    // TODO(stlucas): Improve choosing m
+    //int m = INT_MAX / 4; // / Precision;
+
+    long int total_sum = 0;
+    for(std::vector<int>& row : adjacency_matrix) {
+        for(int& element: row){
+            total_sum += element;
+        }
+    }
+    int m = total_sum;
+
     std::vector<int> row(num_nodes, -1);
     std::vector<std::vector<int>> cluster_matrix(num_nodes, row);
     // NOTES: this matrix represents a lookup if and to which cluster a node belongs
@@ -53,30 +61,36 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> &adjacency_matrix,
         }
     }
 
-    // creating circular zero costs, back-propagating costs
-    for(std::vector<int>& current_cluster : clusters){
-        for(int i = 0; i <  current_cluster.size() - 1; i++){
+    // creating circular zero costs, back-propagating costs (creating P')
+    for(std::vector<int>& current_cluster : clusters) {
+        // keep tmp of adjacency_matrix[current_cluster[0]][k] since it gets overwritten
+        std::vector<int> tmp(num_nodes);
+        for(int k = 0; k < num_nodes; k++){
+            tmp[k] = adjacency_matrix[current_cluster.front()][k];
+        }
+
+        for(int i = 0; i <  current_cluster.size() - 1; i++) {
             // moving "leaving cost one to the left"
             for(int k = 0; k < num_nodes; k++) {
                 if(cluster_matrix[current_cluster[i+1]][k] == -1){ // if its an external edge, put it one back
                     adjacency_matrix[current_cluster[i]][k] = adjacency_matrix[current_cluster[i+1]][k];
                     // TODO: fix the overwriting of the first swap in the list?!
-            }
+                }
           }
           // assigning the direct circle;
           adjacency_matrix[current_cluster[i]][current_cluster[i + 1]] = 0;
         }
         adjacency_matrix[current_cluster.back()][current_cluster.front()] = 0;
 
-        // do the last shift, front to back for all k
+        // do the last shift, front to back for all k (using head used before)
         for(int k = 0; k < num_nodes; k++) {
             if(cluster_matrix[current_cluster.front()][k] == -1){
-                adjacency_matrix[current_cluster.back()][k] = adjacency_matrix[current_cluster.front()][k];
+                adjacency_matrix[current_cluster.back()][k] = tmp[k];
             }
         }
     }
 
-    //assigning M to inter-cluster connections
+    //assigning M to inter-cluster connections (creating P'')
     for (int i = 0; i < num_nodes; i++) {
         for (int j = 0; j < num_nodes; j++) {
             if (cluster_matrix[i][j] == -1) {
@@ -148,8 +162,7 @@ void OrInterface::extractSolution(const Assignment &solution,
     }
     ROS_INFO_STREAM(route.str() << manager.IndexToNode(index).value());
     ROS_INFO_STREAM("Distance of the route: " << distance << "m \n");
-    ROS_INFO_STREAM("Advanced usage: \n" <<
-                                         "Problem solved in " << routing.solver()->wall_time() << "ms");
+    ROS_INFO_STREAM("Problem solved in " << routing.solver()->wall_time() << "ms");
 }
 
 std::vector<int> OrInterface::getTSPSolution() {
