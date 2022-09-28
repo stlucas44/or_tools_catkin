@@ -26,9 +26,7 @@ std::vector<std::vector<int>> simpleTSP(int size = 10){
 std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjacency){
     int num_nodes = adjacency.size();
     int num_clusters = (int)(0.25 * num_nodes) + 1; // max n * 0.25 clusters
-    int nodes_per_cluster = num_nodes / num_clusters;
-    ROS_INFO("Creating cluster: %i nodes, %i clusters,  %i nodes per cluster",
-             num_nodes, num_clusters, nodes_per_cluster);
+    //ROS_INFO("Creating cluster: %i nodes, %i clusters", num_nodes, num_clusters);
 
     std::vector<std::vector<int>>  cluster_set(num_clusters);
     for(int i = 0; i < num_nodes; i++){
@@ -41,7 +39,6 @@ std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjace
 void printVector(std::vector<int> &data){
     std::stringstream ss;
     std::copy(data.begin(), data.end(), std::ostream_iterator<double>(ss, " "));
-    ss << std::endl;
     ROS_INFO_STREAM(ss.str());
 }
 void printVectorVector(std::vector<std::vector<int>> &data){
@@ -78,9 +75,6 @@ TEST(OrInterfaceTest, manyGTSP){
 
 TEST(OrInterfaceTest, simpleGTSP){
     auto adjacency = simpleTSP();
-    //ROS_INFO("adjacency: ");
-    //printVectorVector(adjacency);
-
     auto clusters = simpleCluster(adjacency);
     ROS_INFO("Cluster:");
     printVectorVector(clusters);

@@ -131,8 +131,16 @@ bool ManhattenTsp() {
 }
 
 
-TEST(ORTests, ManhattenTask){
+TEST(ORTests, ManhattenSingle){
   EXPECT_TRUE(ManhattenTsp());
+}
+
+TEST(ORTests, ManhattenMultiple){
+    int num_runs = 1000;
+    for(int i = 0; i < num_runs; i++){
+        EXPECT_TRUE(ManhattenTsp());
+        LOG(INFO) << "Finished run: " << i;
+    }
 }
 } // namespace or_interface_catkin
 

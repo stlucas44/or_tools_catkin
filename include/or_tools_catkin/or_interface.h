@@ -16,7 +16,7 @@ namespace or_tools_catkin {
     public:
         OrInterface(int num_nodes);
 
-        bool loadGTSP(std::vector<std::vector<int>> &adjacency_matrix,
+        bool loadGTSP(std::vector<std::vector<int>> adjacency_matrix,
                       std::vector<std::vector<int>> &clusters);
 
         bool loadTSP(std::vector<std::vector<int>> &adjacency_matrix);
@@ -29,10 +29,11 @@ namespace or_tools_catkin {
 
     private:
         void extractSolution(const Assignment &solution,
-                             RoutingIndexManager manager,
-                             RoutingModel &routing);
+                             const RoutingIndexManager &manager,
+                             const RoutingModel &routing);
 
         RoutingSearchParameters search_params_;
+        const int num_nodes_;
         const int num_vehicles_;
         const RoutingIndexManager::NodeIndex depot_;
         int cost_;
