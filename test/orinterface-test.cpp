@@ -54,6 +54,29 @@ void printVectorVector(std::vector<std::vector<int>> &data){
 }
 
 
+TEST(OrInterfaceTest, polygonSample){
+      // prepare adjacency
+      std::vector<std::vector<int>> adjacency(10,std::vector<int>(10,INT_MAX));
+      std::vector<int> column9 = {94,97,64,86,77,96,108,106};
+      std::vector<int> row8 = {28,25,28,6,25,6,22,25, INT_MAX, INT_MAX};
+
+      for(int i = 0; i < 8; i++){
+        adjacency[i][9] = column9[i];
+      }
+      adjacency[8] = row8;
+      // prepare cluster
+      std::vector<std::vector<int>> clusters = {{0,1,2,3,4,5,6,7}, {8}, {9}};
+
+      OrInterface solver(adjacency.size());
+      EXPECT_TRUE(solver.loadGTSP(adjacency, clusters));
+      ROS_INFO("Manipulated adjacency");
+      printVectorVector(solver.adjacency_matrix_);
+
+      EXPECT_TRUE(solver.solve());
+      auto result_pruned = solver.getGTSPSolution();
+      printVector(result_pruned);
+  }
+
 TEST(OrInterfaceTest, manyGTSP){
     int num_runs = 1000;
     for(int i = 0; i < num_runs; i++){
@@ -61,7 +84,6 @@ TEST(OrInterfaceTest, manyGTSP){
 
       auto clusters = simpleCluster(adjacency);
       ROS_INFO("Cluster:");
-      printVectorVector(clusters);
 
       OrInterface solver(adjacency.size());
       EXPECT_TRUE(solver.loadGTSP(adjacency, clusters));

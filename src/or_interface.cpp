@@ -16,9 +16,9 @@ OrInterface::OrInterface(int num_nodes) :
     ROS_ASSERT(num_nodes_ > 1);
 
     search_params_ = DefaultRoutingSearchParameters();
-    //search_params_.set_first_solution_strategy(
-    //        FirstSolutionStrategy::PATH_CHEAPEST_ARC); //May adapt this!
-    //search_params_.mutable_time_limit()->set_seconds(200);
+    search_params_.set_first_solution_strategy(
+            FirstSolutionStrategy::PATH_CHEAPEST_ARC); //May adapt this!
+    search_params_.mutable_time_limit()->set_seconds(100);
     // TODO: check performance against guided local search
     // resource: https://github.com/google/or-tools/blob/stable/ortools/constraint_solver/routing.h
 
@@ -31,6 +31,9 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> adjacency_matrix,
         ROS_ERROR(" No clusters specified");
         return false;
     }
+
+    printVectorVector(adjacency_matrix);
+    printVectorVector(clusters);
 
     for(std::vector<int>& cluster : clusters){
         if(cluster.size() == 0){
@@ -106,7 +109,8 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> adjacency_matrix,
     //assigning M to inter-cluster connections (creating P'')
     for (int i = 0; i < num_nodes_; i++) {
         for (int j = 0; j < num_nodes_; j++) {
-            if (cluster_matrix[i][j] == -1) {
+            if (cluster_matrix[i][j] == -1 &&
+                adjacency_matrix[i][j] < INT_MAX) {
               adjacency_matrix[i][j] += m_;
             }
         }
@@ -118,7 +122,6 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> adjacency_matrix,
 
 bool OrInterface::loadTSP(std::vector <std::vector<int>> &adjacency_matrix) {
     adjacency_matrix_ = adjacency_matrix;
-    // TODO introcude better test!
     return true;
 }
 
@@ -141,14 +144,25 @@ bool OrInterface::solve() {
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index);
 
     const Assignment *solution = routing.SolveWithParameters(search_params_);
-    CHECK(solution != nullptr);
-    if(!solution->Empty()){
-        extractSolution(*solution, manager, routing);
-        return true;
+
+    if(routing.status() == 1 &&
+        solution != nullptr){
+      extractSolution(*solution, manager, routing);
+      return true;
+    }
+    else if(solution == nullptr){
+      ROS_ERROR("solution == nullptr");
+      ROS_ERROR("OR status: %i", routing.status());
+      return false;
+    }
+
+    else if(!solution->Empty()){
+      ROS_ERROR("solution is empty");
+      return false;
     }
     else{
-        ROS_ERROR("or_tools tsp failed");
-        return false;
+      ROS_ERROR("solution failed with unkown reason tsp failed");
+      return false;
     }
 }
 
@@ -185,9 +199,6 @@ std::vector<int> OrInterface::getTSPSolution() {
 std::vector<int> OrInterface::getGTSPSolution() {
     ROS_ASSERT(!path_nodes_.empty());
 
-    // remove start point dublicate at the end
-    path_nodes_.pop_back();
-
     int prev_cluster = -1;
     std::vector<int> path_nodes_filtered;
 
@@ -205,7 +216,9 @@ std::vector<int> OrInterface::getGTSPSolution() {
         prev_cluster = current_cluster;
     }
 
-    ROS_INFO_STREAM("Corrected distance of the route: " << cost_ - (path_nodes_.size()) * m_ << "m \n");
+    //ROS_INFO_STREAM("Corrected distance of the route: " << cost_ - (path_nodes_.size()) * m_ << "m \n");
+    ROS_INFO("Result:");
+    printVector(path_nodes_filtered);
 
     return path_nodes_filtered;
 }

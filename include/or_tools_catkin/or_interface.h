@@ -45,6 +45,9 @@ namespace or_tools_catkin {
 
         std::vector<int> path_nodes_;
     };
+
+    void printVector(std::vector<int> &data);
+    void printVectorVector(std::vector<std::vector<int>> &data);
 } // namespace or_interface_catkin
 
 #endif // OR_TOOLS_CATKIN_OR_INTERFACE_H
