@@ -32,6 +32,12 @@ std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjace
     for(int i = 0; i < num_nodes; i++){
         cluster_set[rand() % num_clusters].push_back(i);
     }
+    for(int i = 0; i < cluster_set.size(); i++){
+        if (cluster_set[i].size() == 0){
+            cluster_set.erase(cluster_set.begin() + i);
+        }
+    }
+
     return cluster_set;
 }
 
@@ -63,12 +69,9 @@ TEST(OrInterfaceTest, manyGTSP){
       //printVectorVector(solver.adjacency_matrix_);
 
       EXPECT_TRUE(solver.solve());
-      //auto result = solver.getTSPSolution();
-      //printVector(result);
       auto result_pruned = solver.getGTSPSolution();
       ROS_INFO("Solution # %i:", i);
       printVector(result_pruned);
-
     }
 
 }

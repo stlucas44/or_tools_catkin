@@ -13,7 +13,7 @@ OrInterface::OrInterface(int num_nodes) :
         num_vehicles_(1),
         depot_{num_nodes - 2} // always starting at the second last element
 {
-    ROS_ASSERT(num_nodes > 1);
+    ROS_ASSERT(num_nodes_ > 1);
 
     search_params_ = DefaultRoutingSearchParameters();
     //search_params_.set_first_solution_strategy(
@@ -183,23 +183,43 @@ std::vector<int> OrInterface::getTSPSolution() {
 }
 
 std::vector<int> OrInterface::getGTSPSolution() {
-    // TODO(stlucas): filter in-cluster tours for the GTSP
+    ROS_ASSERT(!path_nodes_.empty());
 
-    // detect first element of a cluster and drop the rest!
-    std::vector<int>::iterator iter = path_nodes_.begin();
+    // remove start point dublicate at the end
+    path_nodes_.pop_back();
 
-    for(iter; iter < path_nodes_.end(); iter++){
-        if(cluster_lookup_.find(*iter) != cluster_lookup_.end()){
+    int prev_cluster = -1;
+    std::vector<int> path_nodes_filtered;
 
-            int cluster_index = cluster_lookup_[*iter];
-            int cluster_size = clusters_[cluster_index].size();
-            path_nodes_.erase(iter + 1, iter + cluster_size);
+    // only keep first element of each cluster
+    for(int i = 0; i < path_nodes_.size(); i++){
+        int current_node = path_nodes_[i];
+        int current_cluster = -1;
+        if(cluster_lookup_.find(current_node) != cluster_lookup_.end()) { // locate element in cluster
+          current_cluster = cluster_lookup_[current_node];
         }
+        if (current_cluster == -1 ||
+              current_cluster != prev_cluster){
+            path_nodes_filtered.push_back(current_node);
+        }
+        prev_cluster = current_cluster;
     }
 
-    ROS_INFO_STREAM("Corrected distance of the route: " << cost_ - path_nodes_.size() * m_ << "m \n");
+    ROS_INFO_STREAM("Corrected distance of the route: " << cost_ - (path_nodes_.size()) * m_ << "m \n");
 
-    return path_nodes_;
+    return path_nodes_filtered;
 }
+
+void printVector(std::vector<int> &data){
+    std::stringstream ss;
+    std::copy(data.begin(), data.end(), std::ostream_iterator<double>(ss, " "));
+    ROS_INFO_STREAM(ss.str());
+}
+void printVectorVector(std::vector<std::vector<int>> &data){
+    for(auto vector : data){
+        printVector(vector);
+    }
+}
+
 
 }  // namespace or_interface_catkin
