@@ -23,9 +23,12 @@ std::vector<std::vector<int>> simpleTSP(int size = 10){
   return adjacency;
 }
 
-std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjacency){
+std::vector<std::vector<int>> simpleCluster(std::vector<std::vector<int>> adjacency, int num_clusters = -1){
     int num_nodes = adjacency.size();
-    int num_clusters = (int)(0.25 * num_nodes) + 1; // max n * 0.25 clusters
+    if (num_clusters == -1){
+        num_clusters = (int)(0.25 * num_nodes) + 1; // max n * 0.25 clusters
+    }
+
     //ROS_INFO("Creating cluster: %i nodes, %i clusters", num_nodes, num_clusters);
 
     std::vector<std::vector<int>>  cluster_set(num_clusters);
@@ -53,7 +56,17 @@ void printVectorVector(std::vector<std::vector<int>> &data){
     }
 }
 
+TEST(OrInterfaceTest, largeGTSP){
+    auto adjacency = simpleTSP(400);
+    auto clusters = simpleCluster(adjacency, 50);
 
+    OrInterface solver(adjacency.size());
+    EXPECT_TRUE(solver.loadGTSP(adjacency, clusters));
+    EXPECT_TRUE(solver.solve());
+
+    auto result_pruned = solver.getGTSPSolution();
+    //printVector(result_pruned);
+}
 TEST(OrInterfaceTest, polygonSample){
       // prepare adjacency
       std::vector<std::vector<int>> adjacency(10,std::vector<int>(10,INT_MAX));

@@ -16,8 +16,14 @@ OrInterface::OrInterface(int num_nodes) :
     ROS_ASSERT(num_nodes_ > 1);
 
     search_params_ = DefaultRoutingSearchParameters();
-    search_params_.set_first_solution_strategy(
-            FirstSolutionStrategy::PATH_CHEAPEST_ARC); //May adapt this!
+    //search_params_.set_first_solution_strategy(
+    //        FirstSolutionStrategy::PATH_CHEAPEST_ARC); //May adapt this!
+
+    //search_params_.set_local_search_metaheuristic(
+    //    LocalSearchMetaheuristic::GUIDED_LOCAL_SEARCH);
+    //search_params_.set_log_search(true);
+
+
     search_params_.mutable_time_limit()->set_seconds(100);
     // TODO: check performance against guided local search
     // resource: https://github.com/google/or-tools/blob/stable/ortools/constraint_solver/routing.h
@@ -32,7 +38,8 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> adjacency_matrix,
         return false;
     }
 
-    printVectorVector(adjacency_matrix);
+    //printVectorVector(adjacency_matrix);
+    ROS_INFO("Clusters: ");
     printVectorVector(clusters);
 
     for(std::vector<int>& cluster : clusters){
@@ -79,23 +86,25 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> adjacency_matrix,
         }
     }
 
+    // step 1
     // creating circular zero costs, back-propagating costs (creating P')
     for(std::vector<int>& current_cluster : clusters_) {
+        // copy all costs of the cluster start to keep t
         std::vector<int> tmp(num_nodes_);
         for(int k = 0; k < num_nodes_; k++){
             tmp[k] = adjacency_matrix[current_cluster.front()][k];
         }
 
-        for(int i = 0; i <  current_cluster.size() - 1; i++) {
+        for(int i = 1; i <  current_cluster.size(); i++) {
             // moving "leaving cost one to the left"
             for(int k = 0; k < num_nodes_; k++) {
-                if(cluster_matrix[current_cluster[i+1]][k] == -1){ // if its an external edge, put it one back
-                    adjacency_matrix[current_cluster[i]][k] = adjacency_matrix[current_cluster[i+1]][k];
-                    // TODO: fix the overwriting of the first swap in the list?!
+                if(cluster_matrix[current_cluster[i]][k] == -1){ // if its an external edge, put it one back
+                    adjacency_matrix[current_cluster[i-1]][k] = adjacency_matrix[current_cluster[i]][k];
+                    // TODO: What about the zero cost circular path?
                 }
           }
           // assigning the direct circle;
-          adjacency_matrix[current_cluster[i]][current_cluster[i + 1]] = 0;
+          adjacency_matrix[current_cluster[i-1]][current_cluster[i]] = 0;
         }
         adjacency_matrix[current_cluster.back()][current_cluster.front()] = 0;
         // do the last shift, front to back for all k (using head used before)
@@ -105,7 +114,7 @@ bool OrInterface::loadGTSP(std::vector <std::vector<int>> adjacency_matrix,
             }
         }
     }
-
+    // step 2
     //assigning M to inter-cluster connections (creating P'')
     for (int i = 0; i < num_nodes_; i++) {
         for (int j = 0; j < num_nodes_; j++) {
@@ -226,7 +235,7 @@ std::vector<int> OrInterface::getGTSPSolution() {
 void printVector(std::vector<int> &data){
     std::stringstream ss;
     std::copy(data.begin(), data.end(), std::ostream_iterator<double>(ss, " "));
-    ROS_INFO_STREAM(ss.str());
+    ROS_INFO_STREAM("  " << ss.str());
 }
 void printVectorVector(std::vector<std::vector<int>> &data){
     for(auto vector : data){
