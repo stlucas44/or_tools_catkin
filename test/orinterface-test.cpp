@@ -67,6 +67,7 @@ TEST(OrInterfaceTest, largeGTSP){
     auto result_pruned = solver.getGTSPSolution();
     //printVector(result_pruned);
 }
+
 TEST(OrInterfaceTest, polygonSample){
       // prepare adjacency
       std::vector<std::vector<int>> adjacency(10,std::vector<int>(10,INT_MAX));
@@ -129,7 +130,7 @@ TEST(OrInterfaceTest, simpleGTSP){
     printVector(result_pruned);
 
 }
-/*
+
 TEST(OrInterfaceTest, TSP){
   auto adjacency = simpleTSP();
 
@@ -139,7 +140,7 @@ TEST(OrInterfaceTest, TSP){
   EXPECT_NO_THROW(solver.getTSPSolution());
 
 }
- */
+
 } // namespace or_interface_catkin
 
 
